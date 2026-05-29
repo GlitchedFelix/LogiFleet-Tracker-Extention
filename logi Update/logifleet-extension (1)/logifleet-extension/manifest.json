@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "LogiFleet Driver Sync",
+  "version": "1.0.0",
+  "description": "Scrapes driver records from the MRT admin panel and syncs them to LogiFleet via Supabase.",
+
+  "permissions": [
+    "activeTab",
+    "scripting"
+  ],
+
+  "host_permissions": [
+    "https://backend.mrt.co.za/*",
+    "https://brzrzlsueddmiozybqbr.supabase.co/*"
+  ],
+
+  "content_scripts": [
+    {
+      "matches": ["https://backend.mrt.co.za/admin/drivers*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
