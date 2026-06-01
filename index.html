@@ -240,6 +240,9 @@ document.dispatchEvent(new Event('supabase-ready'));
     outline: none; transition: border-color 0.15s;
   }
   .notes-box:focus { border-color: var(--accent); }
+  .sort-arrow::after { content: ''; color: var(--muted); font-size: 10px; margin-left: 4px; }
+  .sort-arrow.asc::after { content: '▲'; }
+  .sort-arrow.desc::after { content: '▼'; }
   .status-select {
     background: var(--surface2); border: 1px solid var(--border);
     color: var(--text); padding: 8px 12px; border-radius: 8px;
@@ -422,14 +425,14 @@ document.dispatchEvent(new Event('supabase-ready'));
         <div class="loading" id="loading-msg">Connect to Supabase to load drivers</div>
         <table id="drivers-table" style="display:none">
           <thead>
-            <tr>
-              <th>Profile</th>
-              <th>Company</th>
-              <th>Status</th>
-              <th>Compliance</th>
-              <th>Criminal</th>
-              <th>Inspection</th>
-              <th>Added</th>
+            <tr id="table-headers">
+              <th onclick="sortTable('profile_name')" style="cursor:pointer;user-select:none">Profile <span class="sort-arrow" data-col="profile_name"></span></th>
+              <th onclick="sortTable('company')" style="cursor:pointer;user-select:none">Company <span class="sort-arrow" data-col="company"></span></th>
+              <th onclick="sortTable('status')" style="cursor:pointer;user-select:none">Status <span class="sort-arrow" data-col="status"></span></th>
+              <th onclick="sortTable('compliance')" style="cursor:pointer;user-select:none">Compliance <span class="sort-arrow" data-col="compliance"></span></th>
+              <th onclick="sortTable('criminal_check_done')" style="cursor:pointer;user-select:none">Criminal <span class="sort-arrow" data-col="criminal_check_done"></span></th>
+              <th onclick="sortTable('vehicle_inspection_done')" style="cursor:pointer;user-select:none">Inspection <span class="sort-arrow" data-col="vehicle_inspection_done"></span></th>
+              <th onclick="sortTable('created_at')" style="cursor:pointer;user-select:none">Added <span class="sort-arrow" data-col="created_at"></span></th>
             </tr>
           </thead>
           <tbody id="table-body"></tbody>
@@ -602,6 +605,8 @@ let currentCompany = 'all';
 let currentPage = 1;
 const PAGE_SIZE = 100;
 let filteredDrivers = [];
+let sortKey = 'created_at';
+let sortDir = 'desc';
 let selectedDriver = null;
 
 const COMPLIANCE_FIELDS = [
@@ -651,6 +656,8 @@ async function loadData() {
     renderCompanies();
     applyFilters();
     updateDashboard();
+    const arrow = document.querySelector(`.sort-arrow[data-col="${sortKey}"]`);
+    if (arrow) arrow.className = 'sort-arrow ' + sortDir;
     toast('Data loaded — ' + allDrivers.length + ' drivers', 'success');
   } catch(e) {
     document.getElementById('loading-msg').textContent = 'Error: ' + e.message;
@@ -677,6 +684,46 @@ function getComplianceScore(d) {
   return vals.reduce((a, b) => a + b, 0);
 }
 
+function sortTable(key) {
+  if (sortKey === key) {
+    sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortKey = key;
+    sortDir = 'asc';
+  }
+  document.querySelectorAll('.sort-arrow').forEach(el => el.className = 'sort-arrow');
+  const arrow = document.querySelector(`.sort-arrow[data-col="${key}"]`);
+  if (arrow) arrow.className = 'sort-arrow ' + sortDir;
+  currentPage = 1;
+  applySort();
+  renderTable();
+}
+
+function applySort() {
+  filteredDrivers.sort((a, b) => {
+    let av, bv;
+    if (sortKey === 'company') {
+      av = (a.companies?.company_name || '').toLowerCase();
+      bv = (b.companies?.company_name || '').toLowerCase();
+    } else if (sortKey === 'compliance') {
+      av = getComplianceScore(a);
+      bv = getComplianceScore(b);
+    } else if (sortKey === 'created_at') {
+      av = new Date(a.created_at).getTime();
+      bv = new Date(b.created_at).getTime();
+    } else if (sortKey === 'criminal_check_done' || sortKey === 'vehicle_inspection_done') {
+      av = a[sortKey] ? 1 : 0;
+      bv = b[sortKey] ? 1 : 0;
+    } else {
+      av = (a[sortKey] || '').toLowerCase();
+      bv = (b[sortKey] || '').toLowerCase();
+    }
+    if (av < bv) return sortDir === 'asc' ? -1 : 1;
+    if (av > bv) return sortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+}
+
 function applyFilters() {
   const q = document.getElementById('search-input').value.toLowerCase();
   filteredDrivers = allDrivers.filter(d => {
@@ -687,6 +734,7 @@ function applyFilters() {
       (d.email || '').toLowerCase().includes(q);
     return matchStatus && matchCo && matchQ;
   });
+  applySort();
   currentPage = 1;
   renderTable();
   updateCounts();
