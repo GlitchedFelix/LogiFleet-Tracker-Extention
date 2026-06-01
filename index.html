@@ -190,12 +190,18 @@ document.dispatchEvent(new Event('supabase-ready'));
 
   /* PANEL */
   #detail-panel {
-    width: 420px; background: var(--surface); border-left: 1px solid var(--border);
-    display: flex; flex-direction: column; overflow: hidden;
-    transform: translateX(100%); transition: transform 0.25s ease;
-    position: relative;
+    display: none;
+    position: fixed; inset: 0; z-index: 400;
+    background: rgba(0,0,0,0.45);
+    align-items: center; justify-content: center;
   }
-  #detail-panel.open { transform: translateX(0); }
+  #detail-panel.open { display: flex; }
+  .panel-modal {
+    background: var(--surface); border-radius: 14px; border: 1px solid var(--border);
+    width: 640px; max-width: 95vw; max-height: 88vh;
+    display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  }
   .panel-header {
     padding: 16px 20px; border-bottom: 1px solid var(--border);
     display: flex; align-items: flex-start; justify-content: space-between;
@@ -411,7 +417,7 @@ document.dispatchEvent(new Event('supabase-ready'));
       </button>
     </div>
 
-    <div style="display:flex;flex:1;overflow:hidden">
+    <div style="flex:1;overflow:hidden">
       <div class="table-wrap" id="table-area">
         <div class="loading" id="loading-msg">Connect to Supabase to load drivers</div>
         <table id="drivers-table" style="display:none">
@@ -429,9 +435,12 @@ document.dispatchEvent(new Event('supabase-ready'));
           <tbody id="table-body"></tbody>
         </table>
       </div>
+    </div>
+  </div>
 
-      <!-- DETAIL PANEL -->
-      <div id="detail-panel">
+      <!-- DETAIL PANEL MODAL -->
+      <div id="detail-panel" onclick="if(event.target===this)closePanel()">
+        <div class="panel-modal">
         <div class="panel-header">
           <div>
             <h2 id="panel-name">Driver Name</h2>
@@ -499,9 +508,8 @@ document.dispatchEvent(new Event('supabase-ready'));
           <button class="btn" onclick="saveDriver()" style="flex:1">Save Changes</button>
           <button class="btn danger" onclick="deleteDriver()">Delete</button>
         </div>
+        </div><!-- /.panel-modal -->
       </div>
-    </div>
-  </div>
 
   <!-- DASHBOARD VIEW -->
   <div id="dashboard-view">
