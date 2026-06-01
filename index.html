@@ -711,6 +711,9 @@ function applySort() {
     } else if (sortKey === 'created_at') {
       av = new Date(a.created_at).getTime();
       bv = new Date(b.created_at).getTime();
+    } else if (sortKey === 'profile_name') {
+      av = parseInt(a.profile_id) || a.profile_id || '';
+      bv = parseInt(b.profile_id) || b.profile_id || '';
     } else if (sortKey === 'criminal_check_done' || sortKey === 'vehicle_inspection_done') {
       av = a[sortKey] ? 1 : 0;
       bv = b[sortKey] ? 1 : 0;
