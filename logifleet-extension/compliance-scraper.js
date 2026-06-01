@@ -136,10 +136,25 @@ async function ensureAuth() {
 
 function scrapeEditPage(doc) {
   const hasImage = (labelText) => {
-    for (const group of doc.querySelectorAll('div.form-group')) {
-      const label = group.querySelector('label b');
-      if (!label || !label.textContent.trim().toLowerCase().includes(labelText.toLowerCase())) continue;
-      return !!group.querySelector('a[href*="/deletecarpic/"], a[href*="/deleteprofilepic/"]');
+    for (const bold of doc.querySelectorAll('label b')) {
+      if (!bold.textContent.trim().toLowerCase().includes(labelText.toLowerCase())) continue;
+      const container = bold.closest('div.controls') || bold.closest('div.form-group');
+      if (!container) continue;
+      return !!container.querySelector('a[href*="/deletecarpic/"], a[href*="/deleteprofilepic/"], a[href*="/deletedriver"]');
+    }
+    // fallback: check by known input IDs for GIT and Owner Proof of Address
+    const idMap = {
+      'git cover':              'GitImage',
+      'owner proof of address': 'OwnerAddressCarImage',
+    };
+    const key = labelText.toLowerCase();
+    const inputId = idMap[key];
+    if (inputId) {
+      const input = doc.getElementById(inputId);
+      if (input) {
+        const container = input.closest('div.controls') || input.closest('div.form-group');
+        if (container) return !!container.querySelector('a[href*="/delete"]');
+      }
     }
     return false;
   };
