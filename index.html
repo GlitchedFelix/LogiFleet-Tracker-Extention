@@ -591,6 +591,9 @@ let allDrivers = [];
 let companies = [];
 let currentFilter = 'all';
 let currentCompany = 'all';
+let currentPage = 1;
+const PAGE_SIZE = 100;
+let filteredDrivers = [];
 let selectedDriver = null;
 
 const COMPLIANCE_FIELDS = [
@@ -606,6 +609,23 @@ const COMPLIANCE_FIELDS = [
   { key: 'vehicle_insurance', label: 'Vehicle Insurance' },
 ];
 
+async function fetchAllDrivers() {
+  const PAGE = 1000;
+  let all = [], from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from('drivers')
+      .select('*, companies(company_name)')
+      .order('created_at', { ascending: false })
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    all = all.concat(data || []);
+    if (!data || data.length < PAGE) break;
+    from += PAGE;
+  }
+  return all;
+}
+
 async function loadData() {
   if (!supabase) return;
   document.getElementById('loading-msg').style.display = 'block';
@@ -613,13 +633,12 @@ async function loadData() {
   document.getElementById('drivers-table').style.display = 'none';
 
   try {
-    const [{ data: drvs, error: e1 }, { data: cos, error: e2 }] = await Promise.all([
-      supabase.from('drivers').select('*, companies(company_name)').order('created_at', { ascending: false }),
+    const [drvs, { data: cos, error: e2 }] = await Promise.all([
+      fetchAllDrivers(),
       supabase.from('companies').select('*').order('company_name')
     ]);
-    if (e1) throw e1;
     if (e2) throw e2;
-    allDrivers = drvs || [];
+    allDrivers = drvs;
     companies = cos || [];
     renderCompanies();
     applyFilters();
@@ -652,7 +671,7 @@ function getComplianceScore(d) {
 
 function applyFilters() {
   const q = document.getElementById('search-input').value.toLowerCase();
-  let filtered = allDrivers.filter(d => {
+  filteredDrivers = allDrivers.filter(d => {
     const matchStatus = currentFilter === 'all' || d.status === currentFilter;
     const matchCo = currentCompany === 'all' || d.company_id === currentCompany;
     const matchQ = !q || d.profile_name.toLowerCase().includes(q) ||
@@ -660,11 +679,13 @@ function applyFilters() {
       (d.email || '').toLowerCase().includes(q);
     return matchStatus && matchCo && matchQ;
   });
-  renderTable(filtered);
+  currentPage = 1;
+  renderTable();
   updateCounts();
 }
 
-function renderTable(drivers) {
+function renderTable() {
+  const drivers = filteredDrivers;
   const tbody = document.getElementById('table-body');
   document.getElementById('loading-msg').style.display = 'none';
   document.getElementById('drivers-table').style.display = drivers.length ? 'table' : 'none';
@@ -672,10 +693,16 @@ function renderTable(drivers) {
   if (!drivers.length) {
     document.getElementById('loading-msg').style.display = 'block';
     document.getElementById('loading-msg').textContent = 'No drivers found.';
+    renderPagination(0);
     return;
   }
 
-  tbody.innerHTML = drivers.map(d => {
+  const totalPages = Math.ceil(drivers.length / PAGE_SIZE);
+  if (currentPage > totalPages) currentPage = totalPages;
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const page = drivers.slice(start, start + PAGE_SIZE);
+
+  tbody.innerHTML = page.map(d => {
     const score = getComplianceScore(d);
     const pct = Math.round((score / COMPLIANCE_FIELDS.length) * 100);
     const color = pct >= 80 ? '#22c55e' : pct >= 50 ? '#f0c040' : '#ef4444';
@@ -697,6 +724,41 @@ function renderTable(drivers) {
         <td style="color:var(--muted)">${date}</td>
       </tr>`;
   }).join('');
+  renderPagination(Math.ceil(drivers.length / PAGE_SIZE));
+}
+
+function renderPagination(totalPages) {
+  let el = document.getElementById('pagination');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'pagination';
+    el.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:6px;padding:12px 0;flex-wrap:wrap;font-size:13px;';
+    document.getElementById('table-area').appendChild(el);
+  }
+  if (totalPages <= 1) { el.innerHTML = ''; return; }
+  const prev = `<button onclick="goPage(${currentPage-1})" ${currentPage===1?'disabled':''} style="padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface);cursor:pointer;">‹ Prev</button>`;
+  const next = `<button onclick="goPage(${currentPage+1})" ${currentPage===totalPages?'disabled':''} style="padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface);cursor:pointer;">Next ›</button>`;
+  const info = `<span style="color:var(--muted)">Page ${currentPage} of ${totalPages} &nbsp;(${filteredDrivers.length} drivers)</span>`;
+  const nums = Array.from({length: totalPages}, (_,i) => i+1)
+    .filter(p => p===1 || p===totalPages || Math.abs(p-currentPage)<=2)
+    .reduce((acc, p, i, arr) => {
+      if (i > 0 && p - arr[i-1] > 1) acc.push('…');
+      acc.push(p);
+      return acc;
+    }, [])
+    .map(p => p === '…'
+      ? `<span style="padding:0 4px;color:var(--muted)">…</span>`
+      : `<button onclick="goPage(${p})" style="padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:${p===currentPage?'var(--accent)':'var(--surface)'};color:${p===currentPage?'#000':'inherit'};cursor:pointer;">${p}</button>`
+    ).join('');
+  el.innerHTML = prev + nums + next + '&nbsp;&nbsp;' + info;
+}
+
+function goPage(p) {
+  const totalPages = Math.ceil(filteredDrivers.length / PAGE_SIZE);
+  if (p < 1 || p > totalPages) return;
+  currentPage = p;
+  renderTable();
+  document.getElementById('table-area').scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function updateCounts() {
